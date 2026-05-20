@@ -451,7 +451,7 @@ export class CSChessApp extends LitElement {
                     : html`
                         <div class="ai-section">
                           <div class="ai-header">
-                            <span class="ai-status">✓ IA Conectada</span>
+                            <span class="ai-status">✓ IA Conectada: <strong>gemini-2.5-flash</strong></span>
                             <button class="disconnect-api-btn" @click=${this.disconnectApiKey}>
                               🔓 Desconectar
                             </button>
