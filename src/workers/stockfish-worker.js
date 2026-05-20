@@ -54,8 +54,8 @@ async function loadNnueFiles() {
   try {
     self.postMessage("info string Cargando redes neuronales NNUE...");
     
-    // Cargar NNUE big (principal) desde archivos locales
-    const nnueBig = await loadNnue("/nnue/nn-1c0000000000.nnue");
+    // Cargar NNUE big (principal) desde CDN de Lichess (evita límite de 25MB en Cloudflare)
+    const nnueBig = await loadNnue("https://lichess1.org/assets/lifat/vendor/stockfish-nnue/nn-1c0000000000.nnue");
     stockfish.setNnueBuffer(nnueBig, 0);
     
     // Cargar NNUE small (secundaria) desde archivos locales
