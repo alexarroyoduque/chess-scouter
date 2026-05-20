@@ -1668,128 +1668,140 @@ export class CSChessApp extends LitElement {
   handlePieceMoved = async (e) => {
     const { from, to } = e.detail;
     
-    // MODO NUEVA PARTIDA: Añadir movimiento a la línea principal
+    // MODO NUEVA PARTIDA: Añadir movimiento a la línea principal O crear variante
     if (this.isNewGame) {
-      const chess = new Chess(this.fen === "start" ? undefined : this.fen);
-      let move = null;
+      // Verificar si estamos en medio de la partida
+      const isInMiddle = this.current < this.moves.length - 1;
       
-      try {
-        move = chess.move({ from, to, promotion: 'q' });
-      } catch (error) {
-        console.warn('Movimiento ilegal:', error);
-        return;
-      }
-      
-      if (!move) return;
-      
-      console.log(`➕ Nuevo movimiento añadido: ${move.san}`);
-      
-      // Análizar la posición ANTES del movimiento si es el primer movimiento
-      if (this.moves.length === 0) {
-        await this.engine.waitUntilReady();
-        const tempChessBefore = new Chess();
-        const initialAnalysis = await this.engine.evaluate(tempChessBefore.fen(), 20, 250, 3);
+      if (isInMiddle) {
+        // Estamos en medio de la partida - salir del modo nueva partida y crear variante
+        console.log('🔀 Creando variante desde medio de la partida...');
+        this.isNewGame = false;
+        // Dejar que la lógica normal de variantes maneje esto
+        // No hacer return aquí, continuar con la lógica de variantes abajo
+      } else {
+        // Estamos al final - añadir movimiento normalmente
+        const chess = new Chess(this.fen === "start" ? undefined : this.fen);
+        let move = null;
+        
+        try {
+          move = chess.move({ from, to, promotion: 'q' });
+        } catch (error) {
+          console.warn('Movimiento ilegal:', error);
+          return;
+        }
+        
+        if (!move) return;
+        
+        console.log(`➕ Nuevo movimiento añadido: ${move.san}`);
+        
+        // Análizar la posición ANTES del movimiento si es el primer movimiento
+        if (this.moves.length === 0) {
+          await this.engine.waitUntilReady();
+          const tempChessBefore = new Chess();
+          const initialAnalysis = await this.engine.evaluate(tempChessBefore.fen(), 20, 250, 3);
+          
+          // Normalizar evaluación a perspectiva de blancas
+          let evalBefore = initialAnalysis.evaluation || 0;
+          if (tempChessBefore.turn() === 'b') {
+            evalBefore = -evalBefore;
+          }
+          
+          // Convertir bestMove UCI a objeto
+          let bestMoveObj = null;
+          if (initialAnalysis.bestMove) {
+            try {
+              bestMoveObj = tempChessBefore.move({
+                from: initialAnalysis.bestMove.substring(0, 2),
+                to: initialAnalysis.bestMove.substring(2, 4),
+                promotion: initialAnalysis.bestMove.length > 4 ? initialAnalysis.bestMove[4] : undefined
+              });
+            } catch (e) {
+              console.warn('Error convirtiendo bestMove:', e);
+            }
+          }
+          
+          this.bestEvaluations.push(evalBefore);
+          this.positionBestMoves.push(bestMoveObj);
+          this.positionAlternatives.push(initialAnalysis.alternatives || []);
+        }
+        
+        // Añadir movimiento a la lista
+        this.moves.push(move);
+        this.current = this.moves.length - 1;
+        this.fen = chess.fen();
+        this.lastMove = { from: move.from, to: move.to, san: move.san };
+        
+        // Analizar la nueva posición
+        const tempChessAfter = new Chess(this.fen);
+        const analysis = await this.engine.evaluate(this.fen, 20, 250, 3);
         
         // Normalizar evaluación a perspectiva de blancas
-        let evalBefore = initialAnalysis.evaluation || 0;
-        if (tempChessBefore.turn() === 'b') {
-          evalBefore = -evalBefore;
+        let evalAfter = analysis.evaluation || 0;
+        if (tempChessAfter.turn() === 'b') {
+          evalAfter = -evalAfter;
         }
         
         // Convertir bestMove UCI a objeto
         let bestMoveObj = null;
-        if (initialAnalysis.bestMove) {
+        if (analysis.bestMove) {
           try {
-            bestMoveObj = tempChessBefore.move({
-              from: initialAnalysis.bestMove.substring(0, 2),
-              to: initialAnalysis.bestMove.substring(2, 4),
-              promotion: initialAnalysis.bestMove.length > 4 ? initialAnalysis.bestMove[4] : undefined
+            bestMoveObj = tempChessAfter.move({
+              from: analysis.bestMove.substring(0, 2),
+              to: analysis.bestMove.substring(2, 4),
+              promotion: analysis.bestMove.length > 4 ? analysis.bestMove[4] : undefined
             });
           } catch (e) {
             console.warn('Error convirtiendo bestMove:', e);
           }
         }
         
-        this.bestEvaluations.push(evalBefore);
+        // Guardar evaluación y mejor movimiento de esta posición
+        this.bestEvaluations.push(evalAfter);
         this.positionBestMoves.push(bestMoveObj);
-        this.positionAlternatives.push(initialAnalysis.alternatives || []);
-      }
-      
-      // Añadir movimiento a la lista
-      this.moves.push(move);
-      this.current = this.moves.length - 1;
-      this.fen = chess.fen();
-      this.lastMove = { from: move.from, to: move.to, san: move.san };
-      
-      // Analizar la nueva posición
-      const tempChessAfter = new Chess(this.fen);
-      const analysis = await this.engine.evaluate(this.fen, 20, 250, 3);
-      
-      // Normalizar evaluación a perspectiva de blancas
-      let evalAfter = analysis.evaluation || 0;
-      if (tempChessAfter.turn() === 'b') {
-        evalAfter = -evalAfter;
-      }
-      
-      // Convertir bestMove UCI a objeto
-      let bestMoveObj = null;
-      if (analysis.bestMove) {
-        try {
-          bestMoveObj = tempChessAfter.move({
-            from: analysis.bestMove.substring(0, 2),
-            to: analysis.bestMove.substring(2, 4),
-            promotion: analysis.bestMove.length > 4 ? analysis.bestMove[4] : undefined
-          });
-        } catch (e) {
-          console.warn('Error convirtiendo bestMove:', e);
+        this.positionAlternatives.push(analysis.alternatives || []);
+        
+        // Clasificar el movimiento que acabamos de hacer
+        const moveIdx = this.moves.length - 1;
+        const evalBeforeMove = this.bestEvaluations[moveIdx] || 0;
+        const evalAfterMove = this.bestEvaluations[moveIdx + 1] || 0;
+        const bestMoveBefore = this.positionBestMoves[moveIdx];
+        
+        const startChess = new Chess();
+        for (let i = 0; i < moveIdx; i++) {
+          startChess.move(this.moves[i].san);
         }
+        const isWhiteMove = startChess.turn() === 'w';
+        const playerColor = isWhiteMove ? 'white' : 'black';
+        
+        const classification = classifyMove(
+          move,
+          bestMoveBefore,
+          evalBeforeMove,
+          evalAfterMove,
+          playerColor,
+          false
+        );
+        
+        this.classifications.push(classification);
+        this.moveEvaluations.push(evalAfterMove);
+        
+        // Actualizar aperturas
+        this.openingsByMove = buildOpeningsByMove(this.moves);
+        
+        console.log(`✅ Movimiento ${moveIdx + 1} analizado: ${classification}`);
+        console.log(`📊 Eval: ${evalBeforeMove.toFixed(2)} → ${evalAfterMove.toFixed(2)}`);
+        
+        this.requestUpdate();
+        
+        // Analizar posición actual para mostrar sugerencias
+        await this.analyzeCurrentPositionAuto();
+        
+        return;
       }
-      
-      // Guardar evaluación y mejor movimiento de esta posición
-      this.bestEvaluations.push(evalAfter);
-      this.positionBestMoves.push(bestMoveObj);
-      this.positionAlternatives.push(analysis.alternatives || []);
-      
-      // Clasificar el movimiento que acabamos de hacer
-      const moveIdx = this.moves.length - 1;
-      const evalBeforeMove = this.bestEvaluations[moveIdx] || 0;
-      const evalAfterMove = this.bestEvaluations[moveIdx + 1] || 0;
-      const bestMoveBefore = this.positionBestMoves[moveIdx];
-      
-      const startChess = new Chess();
-      for (let i = 0; i < moveIdx; i++) {
-        startChess.move(this.moves[i].san);
-      }
-      const isWhiteMove = startChess.turn() === 'w';
-      const playerColor = isWhiteMove ? 'white' : 'black';
-      
-      const classification = classifyMove(
-        move,
-        bestMoveBefore,
-        evalBeforeMove,
-        evalAfterMove,
-        playerColor,
-        false
-      );
-      
-      this.classifications.push(classification);
-      this.moveEvaluations.push(evalAfterMove);
-      
-      // Actualizar aperturas
-      this.openingsByMove = buildOpeningsByMove(this.moves);
-      
-      console.log(`✅ Movimiento ${moveIdx + 1} analizado: ${classification}`);
-      console.log(`📊 Eval: ${evalBeforeMove.toFixed(2)} → ${evalAfterMove.toFixed(2)}`);
-      
-      this.requestUpdate();
-      
-      // Analizar posición actual para mostrar sugerencias
-      await this.analyzeCurrentPositionAuto();
-      
-      return;
     }
     
-    // MODO NORMAL: Crear variantes
+    // MODO NORMAL O VARIANTE DESDE NUEVA PARTIDA: Crear variantes
     // Asegurarse de que tenemos análisis de la posición actual
     // Si no hay análisis en tiempo real, analizar ahora
     if (!this.currentPositionAnalysis && !this.analyzingPosition) {
