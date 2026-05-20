@@ -1669,18 +1669,13 @@ export class CSChessApp extends LitElement {
     const { from, to } = e.detail;
     
     // MODO NUEVA PARTIDA: Añadir movimiento a la línea principal O crear variante
-    if (this.isNewGame) {
-      // Verificar si estamos en medio de la partida
-      const isInMiddle = this.current < this.moves.length - 1;
+    if (this.isNewGame && !this.inVariant) {
+      // Solo aplicar lógica de nueva partida si estamos en la línea principal (no en variante)
+      // Verificar si estamos en medio de la partida o al final
+      const isAtEnd = this.current === this.moves.length - 1;
       
-      if (isInMiddle) {
-        // Estamos en medio de la partida - salir del modo nueva partida y crear variante
-        console.log('🔀 Creando variante desde medio de la partida...');
-        this.isNewGame = false;
-        // Dejar que la lógica normal de variantes maneje esto
-        // No hacer return aquí, continuar con la lógica de variantes abajo
-      } else {
-        // Estamos al final - añadir movimiento normalmente
+      if (isAtEnd || this.moves.length === 0) {
+        // Estamos al final o es el primer movimiento - añadir movimiento normalmente
         const chess = new Chess(this.fen === "start" ? undefined : this.fen);
         let move = null;
         
