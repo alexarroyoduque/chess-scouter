@@ -1731,11 +1731,18 @@ export class CSChessApp extends LitElement {
         const tempChessAfter = new Chess(this.fen);
         const analysis = await this.engine.evaluate(this.fen, 20, 250, 3);
         
+        console.log(`🔍 Análisis posición después de ${move.san}:`);
+        console.log(`   FEN: ${this.fen}`);
+        console.log(`   Turno: ${tempChessAfter.turn()}`);
+        console.log(`   Eval raw: ${analysis.evaluation}`);
+        
         // Normalizar evaluación a perspectiva de blancas
         let evalAfter = analysis.evaluation || 0;
         if (tempChessAfter.turn() === 'b') {
           evalAfter = -evalAfter;
         }
+        
+        console.log(`   Eval normalizado: ${evalAfter}`);
         
         // Convertir bestMove UCI a objeto
         let bestMoveObj = null;
