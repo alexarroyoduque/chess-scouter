@@ -1,0 +1,23 @@
+{
+  "name": "chess-scouter",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "cd server && npm start",
+    "server:dev": "cd server && npm run dev"
+  },
+  "devDependencies": {
+    "vite": "^5.4.21"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "chess.js": "^1.4.0",
+    "chessground": "^7.12.0",
+    "lila-stockfish-web": "^0.0.11",
+    "lit": "^3.3.2"
+  }
+}
