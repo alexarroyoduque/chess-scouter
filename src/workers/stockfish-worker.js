@@ -52,18 +52,14 @@ StockfishModule().then(async (sf) => {
 
 async function loadNnueFiles() {
   try {
-    self.postMessage("info string Cargando redes neuronales NNUE...");
+    self.postMessage("info string Cargando red neuronal NNUE...");
     
-    // Cargar NNUE big (principal) desde CDN de Lichess (evita límite de 25MB en Cloudflare)
-    const nnueBig = await loadNnue("https://lichess1.org/assets/lifat/vendor/stockfish-nnue/nn-1c0000000000.nnue");
-    stockfish.setNnueBuffer(nnueBig, 0);
-    
-    // Cargar NNUE small (secundaria) desde archivos locales
-    const nnueSmall = await loadNnue("/nnue/nn-37f18f62d772.nnue");
-    stockfish.setNnueBuffer(nnueSmall, 1);
+    // Cargar NNUE desde archivos locales (3.4 MB)
+    const nnueData = await loadNnue("/nnue/nn-37f18f62d772.nnue");
+    stockfish.setNnueBuffer(nnueData, 0);
     
     nnueLoaded = true;
-    self.postMessage("info string NNUE cargadas correctamente");
+    self.postMessage("info string NNUE cargada correctamente");
     
     // Configurar opciones de Stockfish después de cargar NNUE
     stockfish.uci("setoption name Hash value 256");
@@ -73,8 +69,8 @@ async function loadNnueFiles() {
     stockfish.uci("isready");
   } catch (error) {
     console.error("Error loading NNUE:", error);
-    self.postMessage("error: Failed to load NNUE networks");
-    // Intentar continuar sin NNUE (evaluación clásica)
+    self.postMessage("error Failed to load NNUE: " + error.message);
+    // Continuar sin NNUE (evaluación clásica)
     nnueLoaded = true;
     stockfish.uci("setoption name Hash value 256");
     stockfish.uci("setoption name Threads value 4");
