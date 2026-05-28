@@ -19,7 +19,7 @@ export class StockfishService {
     this.worker.onmessage = (e) => {
       const line = e.data;
       if (typeof line !== "string") return;
-
+      
       // Detectar cuando Stockfish está completamente listo
       if (line === "STOCKFISH_READY") {
         this.isReady = true;
@@ -37,8 +37,8 @@ export class StockfishService {
         }
       }
 
-      // Aceptar evaluaciones con profundidad >= 10 (SF17 es rápido y preciso)
-      if ((line.includes("score cp") || line.includes("score mate")) && this.currentDepth >= 10) {
+      // Aceptar evaluaciones con profundidad >= 8 (para WASM más lento)
+      if ((line.includes("score cp") || line.includes("score mate")) && this.currentDepth >= 8) {
         const evalValue = this.parseEvaluation(line);
         
         // Detectar si es multipv
@@ -85,13 +85,15 @@ export class StockfishService {
           const cb = this.callback;
           this.callback = null;
 
-          cb({
+          const result = {
             evaluation: this.currentEval || 0,
             bestMove: this.currentBestMove,
             depth: this.currentDepth,
             pv: this.currentPv,
             alternatives: this.alternatives.filter(a => a) // Filtrar undefined
-          });
+          };
+          
+          cb(result);
         }
       }
     };
@@ -117,7 +119,12 @@ export class StockfishService {
       }
 
       // SF17: depth y movetime configurables
-      this.worker.postMessage(`go depth ${depth} movetime ${movetime}`);
+      // Si movetime es null/undefined, solo usar depth (análisis más profundo sin límite de tiempo)
+      if (movetime === null || movetime === undefined) {
+        this.worker.postMessage(`go depth ${depth}`);
+      } else {
+        this.worker.postMessage(`go depth ${depth} movetime ${movetime}`);
+      }
     });
   }
 

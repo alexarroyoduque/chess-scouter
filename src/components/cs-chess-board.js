@@ -19,8 +19,7 @@ export class CSChessBoard extends LitElement {
     winnerColor: { type: String },
     whiteAccuracy: { type: Number },
     blackAccuracy: { type: Number },
-    moveClassification: { type: String },
-    isNewGame: { type: Boolean }
+    moveClassification: { type: String }
   };
 
   constructor() {
@@ -35,7 +34,6 @@ export class CSChessBoard extends LitElement {
     this.whiteAccuracy = null;
     this.blackAccuracy = null;
     this._previousLastMove = null;
-    this.isNewGame = false;
   }
 
   createRenderRoot() {

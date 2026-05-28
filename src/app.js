@@ -68,10 +68,7 @@ export class CSChessApp extends LitElement {
     // Estado para variantes
     inVariant: { type: Boolean },
     variantPath: { type: Object },
-    currentVariantClassification: { type: String },
-    
-    // Modo nueva partida
-    isNewGame: { type: Boolean }
+    currentVariantClassification: { type: String }
   };
 
   constructor() {
@@ -129,9 +126,6 @@ export class CSChessApp extends LitElement {
     // subVariants tiene la misma estructura recursiva
     this.userVariants = {};
     this.currentVariantClassification = null;
-    
-    // Modo nueva partida
-    this.isNewGame = false;
 
     this.engine = new StockfishService();
   }
@@ -257,7 +251,6 @@ export class CSChessApp extends LitElement {
               .orientation=${this.boardOrientation}
               .winnerColor=${this.winnerColor}
               .moveClassification=${this.inVariant ? this.currentVariantClassification : (this.current >= 0 ? this.classifications?.[this.current] : null)}
-              .isNewGame=${this.isNewGame}
               @piece-moved=${this.handlePieceMoved}
             ></cs-chess-board>
           </div>
@@ -265,40 +258,10 @@ export class CSChessApp extends LitElement {
 
         <!-- Columna derecha: Movimientos y análisis -->
         <div class="moves-column">
-          ${!this.moves.length && !this.isNewGame
+          ${!this.moves.length
             ? html`
                 <div class="panel">
                   <cs-pgn-uploader @pgn-loaded=${this.loadPgn}></cs-pgn-uploader>
-                  
-                  <div style="text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid #333;">
-                    <button 
-                      class="new-game-btn" 
-                      @click=${this.startNewGame}
-                      style="padding: 12px 24px; font-size: 16px; background: linear-gradient(135deg, #81b64c 0%, #5a8536 100%); color: white; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; box-shadow: 0 2px 8px rgba(0,0,0,0.3); transition: transform 0.2s;"
-                      @mouseover=${e => e.target.style.transform = 'scale(1.05)'}
-                      @mouseout=${e => e.target.style.transform = 'scale(1)'}
-                    >
-                      🆕 Nueva Partida
-                    </button>
-                    <div style="margin-top: 12px; color: #999; font-size: 13px;">
-                      Crea tu propia partida con análisis en tiempo real
-                    </div>
-                  </div>
-                </div>
-              `
-            : ""}
-          
-          ${this.isNewGame && this.moves.length === 0
-            ? html`
-                <div class="panel">
-                  <div class="new-game-info" style="text-align: center; padding: 20px;">
-                    <h2 style="color: #81b64c; margin: 0 0 10px 0;">🆕 Nueva Partida</h2>
-                    <p style="color: #ccc; margin: 0 0 20px 0;">
-                      Mueve las piezas en el tablero
-                      <br>
-                      <small style="color: #999;">Stockfish analizará cada posición</small>
-                    </p>
-                  </div>
                 </div>
               `
             : ""}
@@ -603,9 +566,6 @@ export class CSChessApp extends LitElement {
     console.log('app.js loadPgn recibió evento:', e.detail.substring(0, 200));
     console.log('Longitud total del PGN:', e.detail.length);
     
-    // Desactivar modo nueva partida si estaba activo
-    this.isNewGame = false;
-    
     this.pgnText = e.detail;
     
     // Marcar como analizando ANTES de cargar los movimientos
@@ -698,49 +658,6 @@ export class CSChessApp extends LitElement {
       this.analyzeEntireGame();
     }
     
-    this.requestUpdate();
-  };
-
-  startNewGame = () => {
-    console.log('🆕 Iniciando nueva partida desde cero...');
-    
-    // Reiniciar todo el estado
-    this.isNewGame = true;
-    this.moves = [];
-    this.current = -1;
-    this.fen = "start";
-    this.lastMove = null;
-    this.bestMove = null;
-    
-    this.whitePlayer = "Blancas";
-    this.blackPlayer = "Negras";
-    this.winnerColor = null;
-    this.winnerText = "";
-    
-    this.classifications = [];
-    this.moveEvaluations = [];
-    this.bestEvaluations = [];
-    this.positionBestMoves = [];
-    this.positionAlternatives = [];
-    this.openingsByMove = [];
-    this.pgnOpening = "";
-    this.pgnEco = "";
-    this.pgnVariation = "";
-    
-    this.explanations = [];
-    this.currentExplanation = null;
-    this._explanationCache = new Map();
-    
-    this.isAnalyzing = false;
-    this.analysisProgress = 0;
-    this.pgnText = "";
-    
-    this.inVariant = false;
-    this.variantPath = null;
-    this.userVariants = {};
-    this.currentVariantClassification = null;
-    
-    console.log('✅ Nueva partida iniciada - tablero listo para jugar');
     this.requestUpdate();
   };
 
@@ -1668,132 +1585,7 @@ export class CSChessApp extends LitElement {
   handlePieceMoved = async (e) => {
     const { from, to } = e.detail;
     
-    // MODO NUEVA PARTIDA: Añadir movimiento a la línea principal O crear variante
-    if (this.isNewGame && !this.inVariant) {
-      // Solo aplicar lógica de nueva partida si estamos en la línea principal (no en variante)
-      // Verificar si estamos en medio de la partida o al final
-      const isAtEnd = this.current === this.moves.length - 1;
-      
-      if (isAtEnd || this.moves.length === 0) {
-        // Estamos al final o es el primer movimiento - añadir movimiento normalmente
-        const chess = new Chess(this.fen === "start" ? undefined : this.fen);
-        let move = null;
-        
-        try {
-          move = chess.move({ from, to, promotion: 'q' });
-        } catch (error) {
-          console.warn('Movimiento ilegal:', error);
-          return;
-        }
-        
-        if (!move) return;
-        
-        console.log(`➕ Nuevo movimiento añadido: ${move.san}`);
-        
-        // Análizar la posición ANTES del movimiento si es el primer movimiento
-        if (this.moves.length === 0) {
-          await this.engine.waitUntilReady();
-          const tempChessBefore = new Chess();
-          const initialAnalysis = await this.engine.evaluate(tempChessBefore.fen(), 20, 250, 3);
-          
-          // Normalizar evaluación a perspectiva de blancas
-          let evalBefore = initialAnalysis.evaluation || 0;
-          if (tempChessBefore.turn() === 'b') {
-            evalBefore = -evalBefore;
-          }
-          
-          // Convertir bestMove UCI a objeto
-          let bestMoveObj = null;
-          if (initialAnalysis.bestMove) {
-            try {
-              bestMoveObj = tempChessBefore.move({
-                from: initialAnalysis.bestMove.substring(0, 2),
-                to: initialAnalysis.bestMove.substring(2, 4),
-                promotion: initialAnalysis.bestMove.length > 4 ? initialAnalysis.bestMove[4] : undefined
-              });
-            } catch (e) {
-              console.warn('Error convirtiendo bestMove:', e);
-            }
-          }
-          
-          this.bestEvaluations.push(evalBefore);
-          this.positionBestMoves.push(bestMoveObj);
-          this.positionAlternatives.push(initialAnalysis.alternatives || []);
-        }
-        
-        // Añadir movimiento a la lista
-        this.moves.push(move);
-        this.current = this.moves.length - 1;
-        this.fen = chess.fen();
-        this.lastMove = { from: move.from, to: move.to, san: move.san };
-        
-        // Analizar la nueva posición
-        const tempChessAfter = new Chess(this.fen);
-        const analysis = await this.engine.evaluate(this.fen, 20, 250, 3);
-        
-        // Normalizar evaluación a perspectiva de blancas
-        let evalAfter = analysis.evaluation || 0;
-        if (tempChessAfter.turn() === 'b') {
-          evalAfter = -evalAfter;
-        }
-        
-        // Convertir bestMove UCI a objeto
-        let bestMoveObj = null;
-        if (analysis.bestMove) {
-          try {
-            bestMoveObj = tempChessAfter.move({
-              from: analysis.bestMove.substring(0, 2),
-              to: analysis.bestMove.substring(2, 4),
-              promotion: analysis.bestMove.length > 4 ? analysis.bestMove[4] : undefined
-            });
-          } catch (e) {
-            console.warn('Error convirtiendo bestMove:', e);
-          }
-        }
-        
-        // Guardar evaluación y mejor movimiento de esta posición
-        this.bestEvaluations.push(evalAfter);
-        this.positionBestMoves.push(bestMoveObj);
-        this.positionAlternatives.push(analysis.alternatives || []);
-        
-        // Clasificar el movimiento que acabamos de hacer
-        const moveIdx = this.moves.length - 1;
-        const evalBeforeMove = this.bestEvaluations[moveIdx] || 0;
-        const evalAfterMove = this.bestEvaluations[moveIdx + 1] || 0;
-        const bestMoveBefore = this.positionBestMoves[moveIdx];
-        
-        const startChess = new Chess();
-        for (let i = 0; i < moveIdx; i++) {
-          startChess.move(this.moves[i].san);
-        }
-        const isWhiteMove = startChess.turn() === 'w';
-        const playerColor = isWhiteMove ? 'white' : 'black';
-        
-        const classification = classifyMove({
-          playedMove: move,
-          bestMove: bestMoveBefore,
-          playedEval: evalAfterMove,
-          bestEval: evalBeforeMove,
-          playerColor: playerColor,
-          isBook: false
-        });
-        
-        this.classifications.push(classification);
-        this.moveEvaluations.push(evalAfterMove);
-        
-        // Actualizar aperturas
-        this.openingsByMove = buildOpeningsByMove(this.moves);
-        
-        this.requestUpdate();
-        
-        // Analizar posición actual para mostrar sugerencias
-        await this.analyzeCurrentPositionAuto();
-        
-        return;
-      }
-    }
-    
-    // MODO NORMAL O VARIANTE DESDE NUEVA PARTIDA: Crear variantes
+    // Crear variantes
     // Asegurarse de que tenemos análisis de la posición actual
     // Si no hay análisis en tiempo real, analizar ahora
     if (!this.currentPositionAnalysis && !this.analyzingPosition) {
